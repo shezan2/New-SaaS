@@ -74,6 +74,9 @@ function HeroWidget() {
     nextTimeRef.current = playbackCtxRef.current.currentTime;
     
     try {
+      if (playbackCtxRef.current?.state === 'suspended') {
+         await playbackCtxRef.current.resume();
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const sessionPromise = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -81,7 +84,12 @@ function HeroWidget() {
           onopen: async () => {
             setStatus('LISTENING');
             try {
-               const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+               let audioCtx: AudioContext;
+               try {
+                 audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+               } catch(e) {
+                 audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+               }
                audioCtxRef.current = audioCtx;
                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                if (!audioCtxRef.current) {
@@ -129,11 +137,12 @@ function HeroWidget() {
             if (base64Audio && playbackCtxRef.current) {
               setStatus('SPEAKING'); 
               const binary = atob(base64Audio);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) {
+              const validLen = binary.length - (binary.length % 2);
+              const bytes = new Uint8Array(validLen);
+              for (let i = 0; i < validLen; i++) {
                 bytes[i] = binary.charCodeAt(i);
               }
-              const pcm16 = new Int16Array(bytes.buffer);
+              const pcm16 = new Int16Array(bytes.buffer, 0, validLen / 2);
               const float32 = new Float32Array(pcm16.length);
               for (let i = 0; i < pcm16.length; i++) {
                 float32[i] = pcm16[i] / 0x7FFF;
