@@ -20,7 +20,7 @@ import { useState, useRef, useEffect } from 'react';
 
 function Navbar({ onDemo }: { onDemo: () => void }) {
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-md border-b border-white/10">
+    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0B0F19]/80 backdrop-blur-md border-b border-white/10">
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded bg-white" />
         <span className="font-semibold tracking-tight text-white hidden sm:block">Nexus Web Agency</span>
@@ -31,7 +31,7 @@ function Navbar({ onDemo }: { onDemo: () => void }) {
         <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
       </div>
       <div className="flex items-center gap-4">
-        <button onClick={onDemo} className="px-4 py-2 text-sm font-medium text-black bg-white rounded-full hover:bg-gray-200 transition-colors">
+        <button onClick={onDemo} className="px-5 py-2 text-sm font-medium text-teal-50 bg-teal-500/10 border border-teal-500/20 rounded-full hover:bg-teal-500/20 transition-all shadow-sm">
           Book Demo
         </button>
       </div>
@@ -73,10 +73,26 @@ function HeroWidget() {
     playbackCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     nextTimeRef.current = playbackCtxRef.current.currentTime;
     
+    let audioCtx: AudioContext;
+    try {
+      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    } catch(e) {
+      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    audioCtxRef.current = audioCtx;
+    
     try {
       if (playbackCtxRef.current?.state === 'suspended') {
          await playbackCtxRef.current.resume();
       }
+      if (audioCtx.state === 'suspended') {
+         await audioCtx.resume();
+      }
+      
+      // Request mic before connect to avoid delay, though this part is async
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const sessionPromise = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -84,21 +100,10 @@ function HeroWidget() {
           onopen: async () => {
             setStatus('LISTENING');
             try {
-               let audioCtx: AudioContext;
-               try {
-                 audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-               } catch(e) {
-                 audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-               }
-               audioCtxRef.current = audioCtx;
-               const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-               if (!audioCtxRef.current) {
-                 stream.getTracks().forEach(t => t.stop());
-                 return;
-               }
-               streamRef.current = stream;
-               const source = audioCtx.createMediaStreamSource(stream);
-               const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+               if (!audioCtxRef.current || !streamRef.current) return;
+               
+               const source = audioCtxRef.current.createMediaStreamSource(streamRef.current);
+               const processor = audioCtxRef.current.createScriptProcessor(4096, 1, 1);
                processorRef.current = processor;
                
                processor.onaudioprocess = (e) => {
@@ -224,16 +229,16 @@ function HeroWidget() {
       transition={{ duration: 0.8, delay: 0.2 }}
       className="relative w-full max-w-lg mx-auto"
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent blur-3xl" />
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-2xl">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-teal-500/20 via-transparent to-transparent blur-3xl" />
+      <div className="relative overflow-hidden rounded-[24px] border border-[rgba(255,255,255,0.1)] bg-white/[0.03] backdrop-blur-md shadow-2xl">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/5">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-            <span className="text-xs font-mono text-gray-400">STATUS: {status}</span>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.05)] bg-white/[0.01]">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]' : 'bg-gray-500'}`} />
+            <span className="text-[11px] font-mono font-medium tracking-wider text-gray-400 uppercase">STATUS: {status}</span>
           </div>
-          <span className="text-xs font-mono text-gray-500">{formatTime(duration)}</span>
+          <span className="text-[11px] font-mono tracking-wider text-gray-400">{formatTime(duration)}</span>
         </div>
 
         {/* Body */}
@@ -241,10 +246,10 @@ function HeroWidget() {
           <div className="flex flex-col items-center justify-center space-y-4 py-6">
             <button 
               onClick={toggleCall}
-              className={`relative flex items-center justify-center w-24 h-24 rounded-full border transition-colors cursor-pointer ${
+              className={`relative flex items-center justify-center w-24 h-24 rounded-full border transition-all cursor-pointer ${
                 isActive 
-                  ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20' 
-                  : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  ? 'border-red-500/50 bg-red-500/10 hover:bg-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.2)]' 
+                  : 'border-[rgba(255,255,255,0.1)] bg-white/[0.03] hover:bg-white/[0.06]'
               }`}
             >
               {isActive && (
@@ -263,68 +268,88 @@ function HeroWidget() {
 
 function Hero({ onDemo }: { onDemo: () => void }) {
   return (
-    <section className="relative min-h-[90vh] flex flex-col items-center justify-center pt-28 pb-16 px-4 sm:px-6 overflow-hidden">
-      <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-      
-      <div className="w-full max-w-5xl mx-auto text-center z-10 mb-12 sm:mb-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 mb-6 sm:mb-8"
-        >
-          <span className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-[10px] sm:text-xs font-medium tracking-wide text-gray-300 uppercase">Nexus Web Agency Live</span>
-        </motion.div>
-        
-        <motion.h1 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          className="text-4xl sm:text-5xl md:text-7xl font-semibold tracking-tight leading-[1.1] mb-6"
-        >
-          Websites that work.<br className="hidden sm:block" />
-          <span className="text-gray-500">Autonomously.</span>
-        </motion.h1>
-        
-        <motion.p 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed font-light"
-        >
-          We build premium websites for small businesses, featuring embedded AI agents that handle customer inquiries, take orders, and capture leads 24/7.
-        </motion.p>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4"
-        >
-          <button onClick={onDemo} className="w-full sm:w-auto px-8 py-3.5 text-sm font-medium text-black bg-white hover:bg-gray-200 transition-colors rounded-full flex items-center justify-center gap-2">
-            Book a Demo <ArrowRight className="w-4 h-4" />
-          </button>
-        </motion.div>
-      </div>
+    <>
+      <section className="relative min-h-[90vh] flex flex-col justify-center pt-32 pb-20 px-6 overflow-hidden">
+        <div className="w-full max-w-7xl mx-auto z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+          
+          <div className="text-left w-full max-w-2xl">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[rgba(255,255,255,0.1)] bg-white/[0.03] backdrop-blur-md mb-8"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+              <span className="text-[10px] sm:text-xs font-semibold tracking-wider text-teal-50 uppercase">Nexus Web Agency Live</span>
+            </motion.div>
+            
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.1 }}
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight leading-[1.05] mb-8"
+            >
+              <span className="text-white">Websites that work.</span><br className="hidden sm:block" />
+              <span className="bg-gradient-to-r from-teal-400 to-emerald-300 bg-clip-text text-transparent">Autonomously.</span>
+            </motion.h1>
+            
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="text-lg md:text-xl text-gray-400 mb-10 leading-relaxed font-light"
+            >
+              We build premium websites for small businesses, featuring embedded AI agents that handle customer inquiries, take orders, and capture leads 24/7.
+            </motion.p>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="flex items-center"
+            >
+              <button onClick={onDemo} className="w-full sm:w-auto px-8 py-3.5 text-sm font-medium text-[#0B0F19] bg-teal-400 hover:bg-teal-300 transition-all rounded-full flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(45,212,191,0.3)]">
+                Book a Demo <ArrowRight className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </div>
 
-      <HeroWidget />
-    </section>
+          <div className="relative w-full flex justify-center lg:justify-end">
+            <HeroWidget />
+          </div>
+        </div>
+      </section>
+
+      {/* Social Proof Banner */}
+      <section className="py-12 border-y border-[rgba(255,255,255,0.05)] bg-[#0B0F19]/50 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <p className="text-center text-xs font-mono tracking-widest text-gray-500 mb-8 uppercase">Trusted by leaders at</p>
+          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+            {/* Placeholder Logos */}
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight"><div className="w-6 h-6 bg-white rounded-sm" /> ACME Corp</div>
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight"><div className="w-6 h-6 rounded-full border-2 border-white" /> GlobalTech</div>
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight"><div className="w-6 h-6 bg-white rotate-45" /> NexusLink</div>
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight"><div className="w-6 h-6 border-2 border-white rounded-br-xl" /> InnovateSpace</div>
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight hidden md:flex"><div className="w-6 h-6 bg-white rounded-tl-xl rounded-br-xl" /> CloudSync</div>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
 
 function Features() {
   const features = [
     {
-      title: "Multimodal Interface",
-      description: "Seamlessly switch between ultra-low latency voice streaming and rich text chat in the same session.",
+      title: "Always On 24/7",
+      description: "Seamlessly switch between ultra-low latency voice streaming and rich text chat in the same session. Your agent never sleeps.",
       icon: Mic,
       className: "md:col-span-2 md:row-span-2",
       viz: (
-        <div className="absolute inset-x-6 bottom-6 h-32 bg-gradient-to-t from-[#111] to-transparent rounded-lg border border-white/5 overflow-hidden flex flex-col justify-end p-6">
-          <div className="flex gap-2">
-            <span className="px-3 py-1.5 text-xs font-medium bg-white/10 text-white rounded-md shadow-sm">Voice</span>
-            <span className="px-3 py-1.5 text-xs font-medium border border-white/10 text-gray-400 rounded-md">Chat</span>
+        <div className="absolute inset-x-6 bottom-6 h-32 bg-gradient-to-t from-[#0B0F19] to-transparent rounded-lg border border-[rgba(255,255,255,0.05)] overflow-hidden flex flex-col justify-end p-6">
+          <div className="flex flex-wrap gap-2">
+            <span className="px-3 py-1.5 text-xs font-medium bg-teal-500/20 text-teal-300 rounded-md shadow-sm border border-teal-500/30">Voice Stream</span>
+            <span className="px-3 py-1.5 text-xs font-medium border border-[rgba(255,255,255,0.1)] text-gray-400 bg-white/[0.02] rounded-md">Live Chat</span>
           </div>
         </div>
       )
@@ -333,11 +358,11 @@ function Features() {
       title: "Knowledge Sync",
       description: "We train your AI on your own business documents, menus, and product catalogs so it knows everything about your business.",
       icon: Database,
-      className: "md:col-span-1",
+      className: "md:col-span-1 lg:col-span-1",
       viz: (
-        <div className="absolute right-0 bottom-0 pointer-events-none opacity-[0.15] flex gap-2 p-6 translate-x-2 translate-y-4">
-           <div className="w-16 h-20 border border-white rounded-lg bg-white -rotate-12 transform origin-bottom-right" />
-           <div className="w-16 h-20 border border-white rounded-lg bg-white shadow-xl" />
+        <div className="absolute right-0 bottom-0 pointer-events-none opacity-[0.2] flex gap-2 p-6 translate-x-2 translate-y-4">
+           <div className="w-16 h-20 border border-[rgba(255,255,255,0.2)] rounded-lg bg-teal-500/10 -rotate-12 transform origin-bottom-right backdrop-blur-sm" />
+           <div className="w-16 h-20 border border-[rgba(255,255,255,0.3)] rounded-lg bg-white/[0.05] shadow-xl backdrop-blur-md" />
         </div>
       )
     },
@@ -345,12 +370,12 @@ function Features() {
       title: "Autonomous Checkout",
       description: "Generates secure Stripe payment links directly inside the conversation.",
       icon: CreditCard,
-      className: "md:col-span-1",
+      className: "md:col-span-1 lg:col-span-1",
       viz: (
-        <div className="absolute -right-4 -bottom-4 pointer-events-none opacity-20">
-           <div className="w-32 h-20 border border-white rounded-xl bg-gradient-to-br from-white to-transparent p-2 flex flex-col justify-between -rotate-6">
-             <div className="w-4 h-3 bg-black/20 rounded-sm" />
-             <div className="w-12 h-2 bg-black/10 rounded-full" />
+        <div className="absolute -right-4 -bottom-4 pointer-events-none opacity-30">
+           <div className="w-32 h-20 border border-[rgba(255,255,255,0.1)] rounded-xl bg-gradient-to-br from-white/[0.1] to-transparent p-2 flex flex-col justify-between -rotate-6 backdrop-blur-sm">
+             <div className="w-4 h-3 bg-white/20 rounded-sm" />
+             <div className="w-12 h-2 bg-white/10 rounded-full" />
            </div>
         </div>
       )
@@ -359,33 +384,35 @@ function Features() {
       title: "Human Escalation",
       description: "Detects complex inquiries and instantly notifies your team via email or SMS to step in.",
       icon: MessageSquareShare,
-      className: "md:col-span-2",
+      className: "md:col-span-2 lg:col-span-2",
       viz: null
     }
   ];
 
   return (
-    <section id="features" className="py-20 md:py-24 px-6 bg-[#050505]">
+    <section id="features" className="py-20 md:py-24 px-6 bg-[#0B0F19]">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-4 text-white">The architecture of autonomy.</h2>
-          <p className="text-gray-400 text-lg font-light max-w-2xl">Everything you need to turn visitors into booked revenue, built natively into one single lightweight snippet.</p>
+        <div className="mb-12 md:mb-16 text-center md:text-left">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4 text-white">The architecture of autonomy.</h2>
+          <p className="text-gray-400 text-lg font-light max-w-2xl mx-auto md:mx-0">Everything you need to turn visitors into booked revenue, built natively into one single lightweight snippet.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[240px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-auto md:auto-rows-[280px]">
           {features.map((feature, i) => (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
               key={feature.title}
-              className={`relative overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/5 p-6 group hover:border-white/10 transition-colors ${feature.className}`}
+              className={`relative overflow-hidden rounded-3xl bg-white/[0.02] border border-[rgba(255,255,255,0.05)] p-8 group hover:border-[rgba(255,255,255,0.1)] hover:bg-white/[0.03] transition-all shadow-xl ${feature.className}`}
             >
-              <div className="relative z-10 w-full sm:w-[80%] md:w-full">
-                <feature.icon className="w-6 h-6 text-white mb-4 opacity-70" />
-                <h3 className="text-lg font-medium text-white mb-2">{feature.title}</h3>
-                <p className="text-sm font-light text-gray-400 leading-relaxed max-w-xs">{feature.description}</p>
+              <div className="relative z-10 w-full sm:w-[80%] md:w-[90%]">
+                <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mb-6">
+                  <feature.icon className="w-6 h-6 text-teal-400" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3 text-white">{feature.title}</h3>
+                <p className="text-gray-400 font-light leading-relaxed">{feature.description}</p>
               </div>
               {feature.viz}
               <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
@@ -399,10 +426,10 @@ function Features() {
 
 function Metrics() {
   return (
-    <section id="metrics" className="py-20 md:py-24 px-6 border-y border-white/5 bg-[#020202]">
+    <section id="metrics" className="py-20 md:py-24 px-6 border-y border-white/5 bg-[#070A12]">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         <div>
-          <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-6">Forms are dead.<br/>Conversations convert.</h2>
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Forms are dead.<br/>Conversations convert.</h2>
           <p className="text-gray-400 text-lg font-light mb-8 max-w-lg leading-relaxed">
             Passive lead generation relies on hoping the user fills out a 10-field form. Nexus actively hunts for the conversion by asking the right questions, handling pricing objections, and accelerating the deal.
           </p>
@@ -418,8 +445,8 @@ function Metrics() {
           </ul>
         </div>
         
-        <div className="relative aspect-square md:aspect-video lg:aspect-square bg-[#0a0a0a] rounded-3xl border border-white/10 p-8 flex flex-col justify-between overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] pointer-events-none" />
+        <div className="relative aspect-square md:aspect-video lg:aspect-square bg-white/[0.02] rounded-3xl border border-[rgba(255,255,255,0.05)] p-8 flex flex-col justify-between overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 blur-[100px] pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-sm font-mono text-gray-400 uppercase tracking-widest mb-1">Conversion Rate</h3>
             <div className="text-4xl font-light text-white mb-8">Outbound vs Nexus</div>
@@ -499,14 +526,14 @@ function Testimonials() {
   ];
 
   return (
-    <section className="py-20 md:py-24 px-6 bg-[#050505] border-b border-white/5">
+    <section className="py-20 md:py-24 px-6 bg-[#0B0F19] border-b border-white/5">
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl md:text-5xl font-semibold tracking-tight text-center mb-12 flex flex-col items-center">
+        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-center mb-12 flex flex-col items-center">
           Trusted by small businesses.
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
-            <div key={i} className="p-8 rounded-2xl bg-[#0a0a0a] border border-white/5 flex flex-col justify-between">
+            <div key={i} className="p-8 rounded-3xl bg-white/[0.02] border border-[rgba(255,255,255,0.05)] flex flex-col justify-between">
               <div className="mb-6">
                 <div className="flex gap-1 mb-4 text-white">
                    {[...Array(5)].map((_, j) => (
@@ -539,7 +566,7 @@ function FAQ() {
 
   return (
     <section id="faq" className="py-20 md:py-24 px-6 max-w-3xl mx-auto">
-      <h2 className="text-3xl font-semibold tracking-tight text-center mb-12">Frequently asked questions.</h2>
+      <h2 className="text-3xl font-bold tracking-tight text-center mb-12">Frequently asked questions.</h2>
       <div className="space-y-4">
         {faqs.map((faq, i) => (
           <FAQItem key={i} question={faq.q} answer={faq.a} />
@@ -553,7 +580,7 @@ function FAQItem({ question, answer }: { question: string, answer: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border border-white/10 rounded-xl bg-[#0a0a0a] overflow-hidden">
+    <div className="border border-[rgba(255,255,255,0.05)] rounded-2xl bg-white/[0.02] overflow-hidden shadow-sm">
       <button 
         onClick={() => setIsOpen(!isOpen)} 
         className="w-full flex items-center justify-between p-6 text-left"
@@ -576,14 +603,15 @@ function FAQItem({ question, answer }: { question: string, answer: string }) {
 
 function CTA({ onDemo }: { onDemo: () => void }) {
   return (
-    <section className="py-20 md:py-24 px-6 border-t border-white/5 bg-[#050505]">
-      <div className="max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl md:text-6xl font-semibold tracking-tight mb-6">Ready to upgrade your web presence?</h2>
-        <p className="text-base sm:text-lg text-gray-400 font-light max-w-xl mx-auto mb-10 px-4">
+    <section className="py-20 md:py-24 px-6 border-t border-white/5 bg-[#0B0F19]">
+      <div className="max-w-4xl mx-auto text-center relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-teal-500/10 blur-[100px] pointer-events-none rounded-full" />
+        <h2 className="relative text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight mb-6">Ready to upgrade your web presence?</h2>
+        <p className="relative text-base sm:text-lg text-gray-400 font-light max-w-xl mx-auto mb-10 px-4">
           Let us build a stunning website for your small business, supercharged with an AI assistant that drives sales on autopilot.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button onClick={onDemo} className="w-full sm:w-auto px-8 py-4 text-sm font-medium text-black bg-white hover:bg-gray-200 transition-colors rounded-full text-center">
+        <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4">
+          <button onClick={onDemo} className="w-full sm:w-auto px-8 py-4 text-sm font-medium text-[#0B0F19] bg-teal-400 hover:bg-teal-300 transition-all rounded-full text-center shadow-[0_0_20px_rgba(45,212,191,0.3)]">
             Book a demo
           </button>
         </div>
@@ -621,7 +649,7 @@ function Modal({ type, onClose }: { type: 'demo', onClose: () => void }) {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md p-6 sm:p-8 bg-[#0a0a0a] border border-white/10 rounded-2xl relative shadow-2xl text-center"
+            className="w-full max-w-md p-6 sm:p-8 bg-[#0B0F19] border border-[rgba(255,255,255,0.1)] rounded-[24px] relative shadow-2xl text-center"
           >
             <button onClick={onClose} className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -644,7 +672,7 @@ function Modal({ type, onClose }: { type: 'demo', onClose: () => void }) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-md p-6 sm:p-8 bg-[#0a0a0a] border border-white/10 rounded-2xl relative shadow-2xl overflow-y-auto max-h-screen"
+        className="w-full max-w-md p-6 sm:p-8 bg-[#0B0F19] border border-[rgba(255,255,255,0.1)] rounded-[24px] relative shadow-2xl overflow-y-auto max-h-screen"
       >
         <button onClick={onClose} className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors">
             <X className="w-5 h-5" />
@@ -682,7 +710,7 @@ export default function App() {
   const [modalType, setModalType] = useState<'demo' | null>(null);
 
   return (
-    <div className="bg-black min-h-screen text-white selection:bg-white/20 relative">
+    <div className="bg-[#0B0F19] min-h-screen text-white selection:bg-teal-500/30 relative">
       <Navbar onDemo={() => setModalType('demo')} />
       <main>
         <Hero onDemo={() => setModalType('demo')} />
